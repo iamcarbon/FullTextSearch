@@ -6,12 +6,12 @@ namespace Protsyk.PMS.FullText.Core;
 
 public abstract class AstQuery
 {
-    public readonly string Name;
-
     protected AstQuery(string name)
     {
         Name = name;
     }
+
+    public string Name { get; }
 
     protected internal abstract StringBuilder ToString(StringBuilder builder);
 
@@ -21,7 +21,7 @@ public abstract class AstQuery
     }
 }
 
-public sealed  class FunctionAstQuery : AstQuery
+public sealed class FunctionAstQuery : AstQuery
 {
     public readonly List<AstQuery> Args = new();
 
@@ -54,16 +54,16 @@ public sealed  class FunctionAstQuery : AstQuery
 
 public abstract class TermAstQuery : AstQuery
 {
-    public readonly string Value;
-
-    public readonly string EscapedValue;
-
     public TermAstQuery(string name, string value, string escapedValue)
         : base(name)
     {
-        this.Value = value;
-        this.EscapedValue = escapedValue;
+        Value = value;
+        EscapedValue = escapedValue;
     }
+
+    public string Value { get; }
+
+    public string EscapedValue { get; }
 
     protected internal override StringBuilder ToString(StringBuilder builder)
     {
