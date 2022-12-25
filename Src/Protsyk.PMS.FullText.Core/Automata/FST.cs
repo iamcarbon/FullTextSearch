@@ -10,8 +10,6 @@ using Protsyk.PMS.FullText.Core.Collections;
 using Protsyk.PMS.FullText.Core.Common;
 using Protsyk.PMS.FullText.Core.Common.Persistance;
 
-using StringComparer = System.StringComparer;
-
 namespace Protsyk.PMS.FullText.Core.Automata;
 
 public static class FSTExtensions
@@ -47,29 +45,21 @@ public class FSTBuilder<T> : IDisposable
 
     private readonly int minimizedStateCacheSize = 65_000;
 
-    private readonly IDictionary<int, StateWithTransitions> frozenStates;
-
-    private readonly IDictionary<int, List<LinkedListNode<int>>> minimalTransducerStatesDictionary;
-
+    private readonly Dictionary<int, StateWithTransitions> frozenStates;
+    private readonly Dictionary<int, List<LinkedListNode<int>>> minimalTransducerStatesDictionary;
     private readonly LinkedList<int> usageQueue;
-
     private readonly IFSTOutput<T> outputType;
-
     private IPersistentStorage storage;
-
     private int maxWordSize;
-
     private StateWithTransitions[] tempState;
-
     private string previousWord;
-
     private byte[] writeBuffer;
-
     private FSTBuilderStat stat;
+
     #endregion
 
     public FSTBuilder(IFSTOutput<T> outputType)
-        : this(outputType, 65000, new MemoryStorage())
+        : this(outputType, 65_000, new MemoryStorage())
     { }
 
     public FSTBuilder(IFSTOutput<T> outputType, int cacheSize, IPersistentStorage storage)
@@ -82,8 +72,8 @@ public class FSTBuilder<T> : IDisposable
             throw new InvalidOperationException("Storage is not empty");
         }
 
-        this.frozenStates = new Dictionary<int, StateWithTransitions>();
-        this.minimalTransducerStatesDictionary = new Dictionary<int, List<LinkedListNode<int>>>();
+        this.frozenStates = new();
+        this.minimalTransducerStatesDictionary = new();
         this.usageQueue = new LinkedList<int>();
         this.minimizedStateCacheSize = cacheSize;
         this.outputType = outputType;
@@ -91,25 +81,25 @@ public class FSTBuilder<T> : IDisposable
         this.writeBuffer = new byte[4096];
     }
 
-    private class StateWithTransitions
+    private sealed class StateWithTransitions
     {
         private static int NextId = 0;
 
-        public int Id { get; private set; }
+        public int Id { get; }
 
-        // When state is fronzen. Offset in the output file.
+        // When state is frozen. Offset in the output file.
         public long Offset { get; set; }
 
-        public bool IsFronzen { get; set; }
+        public bool IsFrozen { get; set; }
 
         public bool IsFinal { get; set; }
 
-        public List<Transition> Arcs { get; private set; }
+        public List<Transition> Arcs { get; }
 
         public StateWithTransitions()
         {
             Id = Interlocked.Increment(ref NextId);
-            IsFronzen = false;
+            IsFrozen = false;
             Offset = 0;
 
             IsFinal = false;
@@ -120,9 +110,9 @@ public class FSTBuilder<T> : IDisposable
         {
             var result = 0;
 
-            for (int i = 0; i < Arcs.Count; ++i)
+            foreach (ref Transition arc in CollectionsMarshal.AsSpan(Arcs))
             {
-                result = HashCode.Combine(result, Arcs[i].ToId,  Arcs[i].Input, Arcs[i].Output);
+                result = HashCode.Combine(result, arc.ToId, arc.Input, arc.Output);
             }
 
             return HashCode.Combine(result, IsFinal ? 1 : 0);
@@ -172,8 +162,9 @@ public class FSTBuilder<T> : IDisposable
 
     private static StateWithTransitions CopyOf(StateWithTransitions s)
     {
-        var t = new StateWithTransitions();
-        t.IsFinal = s.IsFinal;
+        var t = new StateWithTransitions {
+            IsFinal = s.IsFinal
+        };
         t.Arcs.AddRange(s.Arcs);
         return t;
     }
@@ -183,7 +174,7 @@ public class FSTBuilder<T> : IDisposable
         //TODO: Frozen state should only have toStateOffset in Arcs
         //      therefore other type
         var r = CopyOf(s);
-        r.IsFronzen = true;
+        r.IsFrozen = true;
         r.Offset = WriteState(r);
         frozenStates.Add(r.Id, r);
         return r;
@@ -191,7 +182,7 @@ public class FSTBuilder<T> : IDisposable
 
     private long WriteState(StateWithTransitions s)
     {
-        if (!s.IsFronzen) throw new Exception("What?");
+        if (!s.IsFrozen) throw new Exception("What?");
 
         long startOffset = storage.Length;
         var size = 0;
@@ -251,7 +242,7 @@ public class FSTBuilder<T> : IDisposable
             for (int j = 0; j < ts.Count; ++j)
             {
                 var toStateOffset = ts[j].ToOffset;
-                if (toStateOffset <= 0) throw new Exception("What?");
+                if (toStateOffset <= 0) throw new Exception("Invalid toStateOffset");
 
                 var next = (int)ts[j].Input;
                 writeIndex += VarInt.WriteVInt32((next - prev), writeBuffer.AsSpan(writeIndex));
@@ -287,12 +278,11 @@ public class FSTBuilder<T> : IDisposable
         bool minimize = true;
         if (!minimize)
         {
-            var r = FreezeState(s);
-            return r;
+            return FreezeState(s);
         }
         else
         {
-            var dedupHash = s.GetDedupHash();
+            int dedupHash = s.GetDedupHash();
 
             // Try get cached state
             {
@@ -361,7 +351,7 @@ public class FSTBuilder<T> : IDisposable
 
     private void SetTransition(StateWithTransitions from, char c, StateWithTransitions to)
     {
-        if (from.IsFronzen) throw new Exception("What?");
+        if (from.IsFrozen) throw new ArgumentException("Frozen", nameof(from));
 
         for (int i = 0; i < from.Arcs.Count; ++i)
         {
@@ -401,7 +391,7 @@ public class FSTBuilder<T> : IDisposable
 
     private static void SetOutput(StateWithTransitions from, char c, T output)
     {
-        if (from.IsFronzen) throw new Exception("What?");
+        if (from.IsFrozen) throw new ArgumentException("Frozen", nameof(from));
 
         for (int i = 0; i < from.Arcs.Count; ++i)
         {
@@ -422,23 +412,25 @@ public class FSTBuilder<T> : IDisposable
 
     private static void PropagateOutput(StateWithTransitions from, T output, IFSTOutput<T> outputType)
     {
-        if (from.IsFronzen) throw new Exception("What?");
+        if (from.IsFrozen) throw new ArgumentException("Frozen", nameof(from));
 
         for (int i = 0; i < from.Arcs.Count; ++i)
         {
+            var arc = from.Arcs[i];
+
             from.Arcs[i] = new Transition
             {
-                Output = outputType.Sum(from.Arcs[i].Output, output),
-                Input = from.Arcs[i].Input,
-                ToId = from.Arcs[i].ToId,
-                ToOffset = from.Arcs[i].ToOffset
+                Output = outputType.Sum(arc.Output, output),
+                Input = arc.Input,
+                ToId = arc.ToId,
+                ToOffset = arc.ToOffset
             };
         }
     }
 
     private static void ClearState(StateWithTransitions s)
     {
-        if (s.IsFronzen) throw new Exception("What?");
+        if (s.IsFrozen) throw new ArgumentException("Frozen", nameof(s));
 
         s.IsFinal = false;
         s.Arcs.Clear();
@@ -446,7 +438,7 @@ public class FSTBuilder<T> : IDisposable
 
     private static void SetFinal(StateWithTransitions s)
     {
-        if (s.IsFronzen) throw new Exception("What?");
+        if (s.IsFrozen) throw new ArgumentException("Frozen", nameof(s));
 
         s.IsFinal = true;
     }
@@ -545,7 +537,7 @@ public class FSTBuilder<T> : IDisposable
                     {
                         if (tempState[i].IsFinal || tempState[i].Arcs.Count == 0)
                         {
-                            throw new Exception($"Unexpected final state");
+                            throw new Exception("Unexpected final state");
                         }
                         else
                         {
@@ -639,15 +631,11 @@ public class PersistentFST<T> : IDisposable
 {
     #region Fields
     private const int readAheadSize = 128;
-
     private const int readCacheSize = 32000;
-
     private const int inMemorySize = 1024 * 1024;
-
     private const int blockSize = 4096;
 
     private static readonly int MaxSizeV32 = VarInt.GetByteSize(uint.MaxValue);
-
     private static readonly int MaxSizeV64 = VarInt.GetByteSize(ulong.MaxValue);
 
     private readonly IFSTOutput<T> outputType;
@@ -655,13 +643,9 @@ public class PersistentFST<T> : IDisposable
     private IPersistentStorage storage;
 
     private readonly long storageLength;
-
     private readonly long initial;
-
     private byte[] stateData;
-
     private long readOffset;
-
     private int readSize;
 
     private readonly Dictionary<long, LinkedListNode<(bool, ArcOffset<T>[], long)>> cache = new();
@@ -699,7 +683,7 @@ public class PersistentFST<T> : IDisposable
 
     private long ReadHeader(IPersistentStorage storage)
     {
-        Span<byte> data = stackalloc byte[7 + sizeof(long)];
+        scoped Span<byte> data = stackalloc byte[7 + sizeof(long)];
         storage.ReadAll(0, data);
 
         if ((data[0] != (byte)'F') ||
@@ -891,12 +875,12 @@ public class PersistentFST<T> : IDisposable
             }
             else if (isFinal)
             {
-                result.AppendFormat("{0}[label = \"{0}\", shape = doublecircle, style = bold, fontsize = 14]", stateOffset);
+                result.Append(CultureInfo.InvariantCulture, $"{stateOffset}[label = \"{stateOffset}\", shape = doublecircle, style = bold, fontsize = 14]");
                 result.AppendLine();
             }
             else
             {
-                result.AppendFormat("{0}[label = \"{0}\", shape = circle, style = solid, fontsize = 14]", stateOffset);
+                result.Append(CultureInfo.InvariantCulture, $"{stateOffset}[label = \"{stateOffset}\", shape = circle, style = solid, fontsize = 14]");
                 result.AppendLine();
             }
 
@@ -917,7 +901,7 @@ public class PersistentFST<T> : IDisposable
                 for (int i = 0; i < ts.Length; i++)
                 {
                     var t = ts[i];
-                    result.AppendFormat("{0}->{1} [label = \"{2} | {3}\", fontsize = 14];", stateOffset, t.ToOffset, t.Input, t.Output);
+                    result.Append(CultureInfo.InvariantCulture, $"{stateOffset}->{t.ToOffset} [label = \"{t.Input} | {t.Output}\", fontsize = 14];");
                     result.AppendLine();
                 }
             }
@@ -1001,7 +985,7 @@ public class PersistentFST<T> : IDisposable
         }
 
         toOffset = -1;
-        o = default(T);
+        o = default;
         return false;
     }
 
@@ -1039,9 +1023,9 @@ public class PersistentFST<T> : IDisposable
                             // 1 - Add to prefix
                             // 0 - Go to the state
                             // 2 - Remove from prefix
-                            stack.Push(new ValueTuple<int, long, char>(2, 0, '\0'));
-                            stack.Push(new ValueTuple<int, long, char>(0, t.ToOffset, '\0'));
-                            stack.Push(new ValueTuple<int, long, char>(1, 0, t.Input));
+                            stack.Push(new (2, 0, '\0'));
+                            stack.Push(new (0, t.ToOffset, '\0'));
+                            stack.Push(new (1, 0, t.Input));
                         }
                     }
                 }
@@ -1274,13 +1258,8 @@ public class FST<T> : IFST<T>
         }
 
         var result = new byte[size];
-        result[0] = (byte)'F';
-        result[1] = (byte)'S';
-        result[2] = (byte)'T';
-        result[3] = (byte)'-';
-        result[4] = (byte)'0';
-        result[5] = (byte)'1';
-        result[6] = (byte)'S';
+
+        "FST-01S"u8.CopyTo(result);
 
         int writeIndex = 7;
         BinaryPrimitives.WriteInt64LittleEndian(result.AsSpan(writeIndex), names[Initial]);
@@ -1405,12 +1384,12 @@ public class FST<T> : IFST<T>
 
             if (outputType.MaxByteSize() > 64)
             {
-                readIndex += VarInt.ReadVInt32(data[readIndex..], out var nodeSize);
+                readIndex += VarInt.ReadVInt32(data[readIndex..], out int nodeSize);
             }
 
             readIndex += VarInt.ReadVInt32(data[readIndex..], out var v);
 
-            int tsCount = (int)(v >> 1);
+            int tsCount = v >> 1;
             if (tsCount > 0)
             {
                 int prev = 0;
@@ -1430,7 +1409,7 @@ public class FST<T> : IFST<T>
                     }
 
                     fst.AddTransition(stateList[stateIndex], (char)(input + prev), names[toOffset], output);
-                    prev = (int)(input + prev);
+                    prev = input + prev;
                 }
             }
 
@@ -1461,13 +1440,12 @@ public class FST<T> : IFST<T>
             throw new Exception("Bad state");
         }
 
-        if (t.Count > 0 && t[t.Count - 1].Input >= c)
+        if (t.Count > 0 && t[^1].Input >= c)
         {
             throw new Exception("Bad transition: should be ordered and unique");
         }
 
-        t.Add(new Arc<T>
-        {
+        t.Add(new Arc<T> {
             From = fromId,
             Input = c,
             To = toId,
@@ -1535,7 +1513,7 @@ public class FST<T> : IFST<T>
         }
 
         toId = -1;
-        o = default(T);
+        o = default;
         return false;
     }
 
@@ -1575,7 +1553,7 @@ public class FST<T> : IFST<T>
 
 public readonly struct State : IEquatable<State>
 {
-    public static readonly State NoState = new State { Id = -1 };
+    public static readonly State NoState = new () { Id = -1 };
 
     public int Id { get; init; }
 
@@ -1591,8 +1569,7 @@ public readonly struct State : IEquatable<State>
 
     public override bool Equals(object obj)
     {
-        if (obj == null) return false;
-        return Equals((State)obj);
+        return obj is State other && Equals(other);
     }
 }
 
@@ -1613,16 +1590,15 @@ public readonly struct Arc<T> : IEquatable<Arc<T>>
 
     public bool Equals(Arc<T> other)
     {
-        return From.Equals(other.From) &&
-                To.Equals(other.To) &&
-                Input.Equals(other.Input) &&
-                Output.Equals(other.Output);
+        return From.Equals(other.From) 
+            && To.Equals(other.To) 
+            && Input.Equals(other.Input)
+            && Output.Equals(other.Output);
     }
 
     public override bool Equals(object obj)
     {
-        if (obj == null) return false;
-        return Equals((Arc<T>)obj);
+        return obj is Arc<T> other && Equals(other);
     }
 }
 
@@ -1641,15 +1617,14 @@ public readonly struct ArcOffset<T> : IEquatable<ArcOffset<T>>
 
     public bool Equals(ArcOffset<T> other)
     {
-        return ToOffset.Equals(other.ToOffset) &&
-                Input.Equals(other.Input) &&
-                Output.Equals(other.Output);
+        return ToOffset.Equals(other.ToOffset) 
+            && Input.Equals(other.Input) 
+            && Output.Equals(other.Output);
     }
 
     public override bool Equals(object obj)
     {
-        if (obj == null) return false;
-        return Equals((ArcOffset<T>)obj);
+        return obj is ArcOffset<T> other && Equals(other);
     }
 }
 
