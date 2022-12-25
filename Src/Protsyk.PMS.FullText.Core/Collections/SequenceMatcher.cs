@@ -7,11 +7,11 @@ namespace Protsyk.PMS.FullText.Core.Collections;
 /// <summary>
 /// Match element in that starts from a given prefix
 /// </summary>
-public class SequenceMatcher<T> : IDfaMatcher<T>
+public sealed class SequenceMatcher<T> : IDfaMatcher<T>
 {
     private readonly T[] items;
     private int index;
-    private bool acceptPrefixes;
+    private readonly bool acceptPrefixes;
 
     public SequenceMatcher(IEnumerable<T> items)
         : this(items, false)
