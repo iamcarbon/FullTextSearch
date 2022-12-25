@@ -3,17 +3,16 @@ using System.Buffers.Binary;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+
 using Protsyk.PMS.FullText.Core.Common.Persistance;
 
 namespace Protsyk.PMS.FullText.Core;
 
-public class PostingListBinaryReader : IOccurrenceReader
+public sealed class PostingListBinaryReader : IOccurrenceReader
 {
-    #region Fields
-    internal static readonly int ReadBufferSize = 4096;
+    internal const int ReadBufferSize = 4_096;
 
     private readonly IPersistentStorage persistentStorage;
-    #endregion
 
     public PostingListBinaryReader(string folder, string fileNamePostingLists)
         : this(new FileStorage(Path.Combine(folder, fileNamePostingLists)))
@@ -25,12 +24,10 @@ public class PostingListBinaryReader : IOccurrenceReader
         this.persistentStorage = storage;
     }
 
-    #region API
     public IPostingList Get(PostingListAddress address)
     {
         return new PostingListReaderImpl(persistentStorage, address);
     }
-    #endregion
 
     #region ReaderEnumerator
     private class PostingListReaderImpl : IPostingList
@@ -55,7 +52,7 @@ public class PostingListBinaryReader : IOccurrenceReader
         }
     }
 
-    private class ReaderEnumerator : IEnumerator<Occurrence>
+    private sealed class ReaderEnumerator : IEnumerator<Occurrence>
     {
         private const int HeaderLength = sizeof(long) + sizeof(int);
         private readonly IPersistentStorage persistentStorage;
@@ -174,7 +171,7 @@ public class PostingListBinaryReader : IOccurrenceReader
 
                     state = (isEof && indxInBuffer >= dataInBuffer) ? 0 : 4;
 
-                    current = Occurrence.O((ulong)docId, (ulong)fieldId, (ulong)tokenId);
+                    current = new Occurrence((ulong)docId, (ulong)fieldId, (ulong)tokenId);
                     return true;
                 }
 
@@ -200,7 +197,7 @@ public class PostingListBinaryReader : IOccurrenceReader
 
                     state = (isEof && indxInBuffer >= dataInBuffer) ? 0 : 3;
 
-                    current = Occurrence.O((ulong)docId, (ulong)fieldId, (ulong)tokenId);
+                    current = new Occurrence((ulong)docId, (ulong)fieldId, (ulong)tokenId);
                     return true;
                 }
 
@@ -226,7 +223,7 @@ public class PostingListBinaryReader : IOccurrenceReader
 
                     state = (isEof && indxInBuffer >= dataInBuffer) ? 0 : 2;
 
-                    current = Occurrence.O((ulong)docId, (ulong)fieldId, (ulong)tokenId);
+                    current = new Occurrence((ulong)docId, (ulong)fieldId, (ulong)tokenId);
                     return true;
                 }
 
@@ -245,7 +242,7 @@ public class PostingListBinaryReader : IOccurrenceReader
 
                     state = (isEof && indxInBuffer >= dataInBuffer) ? 0 : 1;
 
-                    current = Occurrence.O((ulong)docId, (ulong)fieldId, (ulong)tokenId);
+                    current = new Occurrence((ulong)docId, (ulong)fieldId, (ulong)tokenId);
                     return true;
                 }
 
