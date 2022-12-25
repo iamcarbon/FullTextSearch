@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers.Text;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -7,13 +8,11 @@ using Protsyk.PMS.FullText.Core.Common.Persistance;
 
 namespace Protsyk.PMS.FullText.Core;
 
-public class PostingListReader : IOccurrenceReader
+public sealed class PostingListReader : IOccurrenceReader
 {
-    #region Fields
     internal static readonly int ReadBufferSize = 4096;
 
     private readonly IPersistentStorage persistentStorage;
-    #endregion
 
     public PostingListReader(string folder, string fileNamePostingLists)
         : this(new FileStorage(Path.Combine(folder, fileNamePostingLists)))
@@ -25,15 +24,13 @@ public class PostingListReader : IOccurrenceReader
         this.persistentStorage = storage;
     }
 
-    #region API
     public IPostingList Get(PostingListAddress address)
     {
         return new PostingListReaderImpl(persistentStorage, address);
     }
-    #endregion
 
     #region ReaderEnumerator
-    private class PostingListReaderImpl : IPostingList
+    private sealed class PostingListReaderImpl : IPostingList
     {
         private readonly IPersistentStorage storage;
         private readonly PostingListAddress address;
@@ -55,7 +52,7 @@ public class PostingListReader : IOccurrenceReader
         }
     }
 
-    private class ReaderEnumerator : IEnumerator<Occurrence>
+    private sealed class ReaderEnumerator : IEnumerator<Occurrence>
     {
         private readonly IPersistentStorage persistentStorage;
         private readonly PostingListAddress address;
@@ -117,20 +114,18 @@ public class PostingListReader : IOccurrenceReader
 
         private ulong ParseNumber()
         {
-            var r = 0UL;
-            var c = PeekChar();
-            while (char.IsDigit(c))
+            Span<byte> buffer = stackalloc byte[20];
+            int i = 0;
+
+            char c;
+            while (char.IsDigit((c = PeekChar())))
             {
-                r = r * 10 + (ulong)((int)c - (int)'0');
+                buffer[i++] = (byte)c;
 
-                if (!NextChar())
-                {
-                    break;
-                }
-
-                c = PeekChar();
+                if (!NextChar()) break;
             }
-            return r;
+
+            return Utf8Parser.TryParse(buffer, out ulong result, out _) ? result : 0;
         }
 
         public bool MoveNext()
@@ -236,7 +231,7 @@ public class PostingListReader : IOccurrenceReader
                     throw new Exception("Wrong data");
                 }
 
-                current = Occurrence.O(docId, fieldId, tokenId);
+                current = new Occurrence(docId, fieldId, tokenId);
                 return true;
             }
         }
@@ -251,10 +246,8 @@ public class PostingListReader : IOccurrenceReader
     }
     #endregion
 
-    #region IDisposable
     public void Dispose()
     {
         persistentStorage?.Dispose();
     }
-    #endregion
 }
