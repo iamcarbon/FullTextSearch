@@ -14,7 +14,7 @@ public class PersistentHashTable<TKey, TValue> : IEnumerable<KeyValuePair<TKey, 
     private const int MinCapacity = 8;
     private static ReadOnlySpan<byte> Header => "PMS-HASH"u8;
     private static readonly int HeaderSize = Header.Length;
-    private static readonly int IndexRecordSize = sizeof(long) + sizeof(int);
+    private const int IndexRecordSize = sizeof(long) + sizeof(int);
 
     private readonly IDataSerializer<TKey> keySerializer;
     private readonly IDataSerializer<TValue> valueSerializer;

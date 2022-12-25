@@ -89,11 +89,11 @@ public class DeltaVarIntListReader : IDisposable
         }
     }
 
-    private class ReaderEnumerator : IEnumerator<ulong>
+    private sealed class ReaderEnumerator : IEnumerator<ulong>
     {
         #region Fields
         private const int SkipSearchBlocksThreshold = 8;
-        private static readonly int HeaderLength = 1 + sizeof(int) + sizeof(int);
+        private const int HeaderLength = 1 + sizeof(int) + sizeof(int);
         private readonly IPersistentStorage persistentStorage;
         private readonly long listStart;
         private readonly byte[] buffer;

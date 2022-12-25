@@ -843,7 +843,7 @@ public class BtreePersistent<TKey, TValue> : IDictionary<TKey, TValue>, IDisposa
     {
         private static ReadOnlySpan<byte> HeaderBytes => "Btree-v1"u8;
 
-        private static readonly int NewId = -1;
+        private const int NewId = -1;
         public static readonly int NoId = 0;
 
         private readonly byte[] headerData;
