@@ -26,9 +26,6 @@ public class TextDocument : ITextDocument
     }
     #endregion
 
-    #region Methods
-    #endregion
-
     #region ITextDocument
     public string TokenAt(int offset)
     {
@@ -59,7 +56,7 @@ public class TextDocument : ITextDocument
             {
                 if (a > 0)
                 {
-                    a = a - 1;
+                    a--;
                 }
             }
 
