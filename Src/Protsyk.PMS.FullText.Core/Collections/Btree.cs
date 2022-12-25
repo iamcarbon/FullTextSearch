@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 
@@ -67,19 +68,17 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
 
     private bool RemoveInternal(TKey key)
     {
-        Node temp;
-        if (!TryFindKeyOrLeaf(key, out temp))
+        if (!TryFindKeyOrLeaf(key, out Node temp))
         {
             return false;
         }
 
-        int index;
-        if (!temp.TryFindUpperBound(key, comparer, out index))
+        if (!temp.TryFindUpperBound(key, comparer, out int index))
         {
             throw new InvalidOperationException();
         }
 
-        Node nodeThatLostKey = null;
+        Node nodeThatLostKey;
         if (!temp.IsLeaf)
         {
             // Locate adjacent key - leftmost leaf in the right subtree
@@ -259,7 +258,7 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
     private void SplitUp(Node target)
     {
         var targetParent = target.Parent;
-        if (targetParent == null)
+        if (targetParent is null)
         {
             rootNode = new Node(null);
             targetParent = rootNode;
@@ -317,8 +316,7 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
 
     private Node FindLeaf(TKey key)
     {
-        Node result;
-        if (TryFindKeyOrLeaf(key, out result))
+        if (TryFindKeyOrLeaf(key, out Node result))
         {
             throw new KeyAlreadyExistsException();
         }
@@ -327,14 +325,13 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
 
     private bool TryFindKeyOrLeaf(TKey key, out Node keyOrLeafNode)
     {
-        if (rootNode == null)
+        if (rootNode is null)
             throw new InvalidOperationException();
 
         var current = rootNode;
         while (true)
         {
-            int index;
-            if (current.TryFindUpperBound(key, comparer, out index))
+            if (current.TryFindUpperBound(key, comparer, out int index))
             {
                 keyOrLeafNode = current;
                 return true;
@@ -348,7 +345,7 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
             current = current.Links[index];
         }
 
-        if (current == null)
+        if (current is null)
         {
             throw new InvalidOperationException();
         }
@@ -361,7 +358,7 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
 
     #region Types
 
-    private class Node
+    private sealed class Node
     {
         public List<TKey> Keys { get; private set; }
 
@@ -371,23 +368,21 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
 
         public Node Parent { get; set; }
 
-        public bool IsLeaf => Links.All(l => l == null);
-
+        public bool IsLeaf => Links.All(static l => l is null);
 
         public Node(Node parent)
         {
             Parent = parent;
             Keys = new List<TKey>();
             Values = new List<TValue>();
-            Links = new List<Node>();
-            Links.Add(null);
+            Links = new List<Node> {
+                null
+            };
         }
-
 
         public int Put(TKey key, TValue value, IComparer<TKey> comparer)
         {
-            int index;
-            if (TryFindUpperBound(key, comparer, out index))
+            if (TryFindUpperBound(key, comparer, out int index))
             {
                 throw new KeyAlreadyExistsException();
             }
@@ -397,7 +392,6 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
             Links.Insert(index, null);
             return index;
         }
-
 
         internal bool TryFindUpperBound(TKey key, IComparer<TKey> comparer, out int index)
         {
@@ -435,8 +429,7 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
         // Nodes
         foreach (var node in Visit())
         {
-            int index = 0;
-            if (!labels.TryGetValue(node.Item1, out index))
+            if (!labels.TryGetValue(node.Item1, out int index))
             {
                 index = labels.Count + 1;
                 labels.Add(node.Item1, index);
@@ -450,8 +443,7 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
         var linksDone = new HashSet<int>();
         foreach (var node in Visit())
         {
-            int index;
-            if (!labels.TryGetValue(node.Item1, out index))
+            if (!labels.TryGetValue(node.Item1, out int index))
             {
                 throw new InvalidOperationException();
             }
@@ -468,39 +460,33 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
         return text.ToString();
     }
 
-    private void FormatLinks(StringBuilder text, Dictionary<Node, int> labels, Node node, int id)
+    private static void FormatLinks(StringBuilder text, Dictionary<Node, int> labels, Node node, int id)
     {
         for (int i = 0; i < node.Links.Count; ++i)
         {
             var child = node.Links[i];
-            if (child == null)
+            if (child is null)
             {
                 continue;
             }
 
-            int childIndex;
-            if (!labels.TryGetValue(child, out childIndex))
+            if (!labels.TryGetValue(child, out int childIndex))
             {
                 throw new InvalidOperationException();
             }
 
-            text.AppendFormat("node{0}:f{1}->node{2}:f0;", id, i, childIndex);
-            text.AppendLine();
+            text.AppendLine(CultureInfo.InvariantCulture, $"node{id}:f{i}->node{childIndex}:f0;");
         }
     }
 
-    private void FormatNode(StringBuilder text, Node node, int id)
+    private static void FormatNode(StringBuilder text, Node node, int id)
     {
-        text.AppendFormat("node{0}[label = \"", id);
+        text.Append($"node{id}[label = \"");
         for (int i = 0; i < node.Keys.Count; ++i)
         {
-            text.AppendFormat("<f{0}>|", i);
-            text.Append(node.Keys[i]);
-            text.Append(" - ");
-            text.Append(node.Values[i]);
-            text.Append('|');
+            text.Append($"<f{i}>|{node.Keys[i]} - {node.Values[i]}|");
         }
-        text.AppendFormat("<f{0}>", node.Keys.Count);
+        text.Append($"<f{node.Keys.Count}>");
         text.Append("\"];");
         text.AppendLine();
     }
@@ -561,7 +547,7 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
     #region IEnumerable<KeyValuePair<TKey, TValue>>
     public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
     {
-        return Visit().Select(v => new KeyValuePair<TKey, TValue>(v.Item1.Keys[v.Item2], v.Item1.Values[v.Item2])).GetEnumerator();
+        return Visit().Select(static v => new KeyValuePair<TKey, TValue>(v.Item1.Keys[v.Item2], v.Item1.Values[v.Item2])).GetEnumerator();
     }
 
     IEnumerator IEnumerable.GetEnumerator()
@@ -585,12 +571,8 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
 
     public bool Contains(KeyValuePair<TKey, TValue> item)
     {
-        TValue value;
-        if (TryGetValue(item.Key, out value))
-        {
-            return Equals(value, item.Value);
-        }
-        return false;
+        return TryGetValue(item.Key, out TValue value) 
+            && Equals(value, item.Value);
     }
 
     public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex)
@@ -624,15 +606,13 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
 
     public bool TryGetValue(TKey key, out TValue value)
     {
-        Node temp;
-        if (!TryFindKeyOrLeaf(key, out temp))
+        if (!TryFindKeyOrLeaf(key, out Node temp))
         {
             value = default;
             return false;
         }
 
-        int index;
-        if (!temp.TryFindUpperBound(key, comparer, out index))
+        if (!temp.TryFindUpperBound(key, comparer, out int index))
         {
             value = default;
             return false;
@@ -651,15 +631,13 @@ public class Btree<TKey, TValue> : IDictionary<TKey, TValue>
         }
         set
         {
-            Node temp;
-            if (!TryFindKeyOrLeaf(key, out temp))
+            if (!TryFindKeyOrLeaf(key, out Node temp))
             {
                 AddInternal(key, value);
             }
             else
             {
-                int index;
-                if (temp.TryFindUpperBound(key, comparer, out index))
+                if (temp.TryFindUpperBound(key, comparer, out int index))
                 {
                     temp.Values[index] = value;
                 }
