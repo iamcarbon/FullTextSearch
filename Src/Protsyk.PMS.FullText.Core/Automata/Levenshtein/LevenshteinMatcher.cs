@@ -6,7 +6,7 @@
 /// 
 /// Works for Tries built from a set of strings.
 /// </summary>
-public class LevenshteinMatcher : AutomataMatcher
+public sealed class LevenshteinMatcher : AutomataMatcher
 {
     public LevenshteinMatcher(string pattern, int degree)
         : base(pattern.Length + degree + 1, ()=> CreateDFA(pattern, degree))
