@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 
 namespace Protsyk.PMS.FullText.Core.Automata;
@@ -11,8 +12,8 @@ public class DFA
 {
     public static readonly int NoState = -1;
 
-    private readonly List<List<ValueTuple<CharRange, int>>> transitions = new List<List<ValueTuple<CharRange, int>>>();
-    private readonly HashSet<int> final = new HashSet<int>();
+    private readonly List<List<ValueTuple<CharRange, int>>> transitions = new();
+    private readonly HashSet<int> final = new();
 
     public void AddState(int state, bool isFinal)
     {
@@ -65,24 +66,20 @@ public class DFA
         {
             if (i == 0)
             {
-                result.AppendFormat("{0}[label = \"{0}\", shape = circle, style = bold, fontsize = 14]", i);
-                result.AppendLine();
+                result.AppendLine(CultureInfo.InvariantCulture, $"{i}[label = \"{i}\", shape = circle, style = bold, fontsize = 14]");
             }
             else if (final.Contains(i))
             {
-                result.AppendFormat("{0}[label = \"{0}\", shape = doublecircle, style = bold, fontsize = 14]", i);
-                result.AppendLine();
+                result.AppendLine(CultureInfo.InvariantCulture, $"{i}[label = \"{i}\", shape = doublecircle, style = bold, fontsize = 14]");
             }
             else
             {
-                result.AppendFormat("{0}[label = \"{0}\", shape = circle, style = solid, fontsize = 14]", i);
-                result.AppendLine();
+                result.AppendLine(CultureInfo.InvariantCulture, $"{i}[label = \"{i}\", shape = circle, style = solid, fontsize = 14]");
             }
 
             foreach (var t in transitions[i])
             {
-                result.AppendFormat("{0}->{1} [label = \"{2}\", fontsize = 14];", i, t.Item2, t.Item1);
-                result.AppendLine();
+                result.AppendLine(CultureInfo.InvariantCulture, $"{i}->{t.Item2} [label = \"{t.Item1}\", fontsize = 14];");
             }
         }
 
