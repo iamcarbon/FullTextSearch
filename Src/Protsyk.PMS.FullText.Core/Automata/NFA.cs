@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 
@@ -14,12 +15,12 @@ public class NFA
     public static char EpsilonChar = 'ε';
     public static char AnyChar = '*';
 
-    public static CharRange Epsilon = new CharRange(0, 0);
-    public static CharRange Any = new CharRange(1, 65535);
+    public static CharRange Epsilon = new (0, 0);
+    public static CharRange Any = new (1, 65535);
 
     private int initial = 0;
     private readonly List<int> states = new List<int>();
-    private readonly List<ValueTuple<int, int, CharRange>> transitions = new List<ValueTuple<int, int, CharRange>>();
+    private readonly List<ValueTuple<int, int, CharRange>> transitions = new();
     private readonly HashSet<int> final = new HashSet<int>();
 
     public void AddState(int state, bool isFinal)
@@ -186,18 +187,15 @@ public class NFA
                 if (t.Item1 != states[i]) continue;
                 if (t.Item3.Equals(Any))
                 {
-                    result.AppendFormat("{0}->{1} [label = \"*\", fontsize = 14];", t.Item1, t.Item2);
-                    result.AppendLine();
+                    result.AppendLine(CultureInfo.InvariantCulture, $"{t.Item1}->{t.Item2} [label = \"*\", fontsize = 14];");
                 }
                 else if (t.Item3.Equals(Epsilon))
                 {
-                    result.AppendFormat("{0}->{1} [label = \"&epsilon;\", fontsize = 14];", t.Item1, t.Item2);
-                    result.AppendLine();
+                    result.AppendLine(CultureInfo.InvariantCulture, $"{t.Item1}->{t.Item2} [label = \"&epsilon;\", fontsize = 14];");
                 }
                 else
                 {
-                    result.AppendFormat("{0}->{1} [label = \"{2}\", fontsize = 14];", t.Item1, t.Item2, t.Item3);
-                    result.AppendLine();
+                    result.AppendLine(CultureInfo.InvariantCulture, $"{t.Item1}->{t.Item2} [label = \"{t.Item3}\", fontsize = 14];");
                 }
             }
         }
@@ -214,8 +212,10 @@ public class NFA
         var seen = new Dictionary<HashSet<int>, int>(new SetStateComparer());
         int setKey = 0;
 
-        var setInitial = new HashSet<int>();
-        setInitial.Add(0);
+        var setInitial = new HashSet<int> {
+            0
+        };
+
         EpsilonClosure(setInitial);
 
         target.AddState(setKey, ContainsFinalState(setInitial));
