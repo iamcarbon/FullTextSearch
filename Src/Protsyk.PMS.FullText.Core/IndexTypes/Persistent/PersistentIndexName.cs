@@ -1,14 +1,8 @@
 ﻿namespace Protsyk.PMS.FullText.Core;
 
-public class PersistentIndexName : IIndexName
+public sealed class PersistentIndexName : IIndexName
 {
     public static string DefaultValue = "Default";
-
-    public string Folder { get; }
-    public string DictionaryType { get; set; }
-    public string FieldsType { get; set; }
-    public string PostingType { get; set; }
-    public string TextEncoding { get; set; }
 
     public PersistentIndexName(string folder)
         : this(folder, DefaultValue, DefaultValue, DefaultValue, DefaultValue)
@@ -24,4 +18,13 @@ public class PersistentIndexName : IIndexName
         TextEncoding = textEncoding;
     }
 
+    public string Folder { get; }
+
+    public string DictionaryType { get; set; }
+
+    public string FieldsType { get; set; }
+
+    public string PostingType { get; set; }
+
+    public string TextEncoding { get; set; }
 }
