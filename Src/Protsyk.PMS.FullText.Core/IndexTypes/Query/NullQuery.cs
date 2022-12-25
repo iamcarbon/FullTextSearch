@@ -3,21 +3,13 @@
 /// <summary>
 /// Query that returns no results
 /// </summary>
-public class NullQuery : ISearchQuery
+public sealed class NullQuery : ISearchQuery
 {
-    #region Fields
-    public static readonly ISearchQuery Instance = new NullQuery();
-    #endregion
+    public static readonly NullQuery Instance = new();
 
-    #region Methods
     private NullQuery() { }
-    #endregion
-
-    #region ISearchQuery
 
     public IMatch NextMatch() => null;
 
     public void Dispose() { }
-
-    #endregion
 }

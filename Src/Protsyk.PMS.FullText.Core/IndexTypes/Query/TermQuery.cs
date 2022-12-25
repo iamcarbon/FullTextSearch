@@ -3,24 +3,19 @@ using System.Collections.Generic;
 
 namespace Protsyk.PMS.FullText.Core;
 
-public class TermQuery : ISearchQuery
+public sealed class TermQuery : ISearchQuery
 {
-    #region Fields
     private readonly IPostingList postings;
     private readonly MatchIterator matchIterator;
     private bool consumed;
-    #endregion
 
-    #region Methods
     public TermQuery(IPostingList postings)
     {
         this.postings = postings;
         this.matchIterator = new MatchIterator(postings.GetEnumerator());
         this.consumed = false;
     }
-    #endregion
 
-    #region ISearchQuery
     public IMatch NextMatch()
     {
         if (consumed)
@@ -41,10 +36,9 @@ public class TermQuery : ISearchQuery
     {
         matchIterator?.Dispose();
     }
-    #endregion
 
     #region Types
-    private class MatchIterator: IMatch, IDisposable
+    private sealed class MatchIterator: IMatch, IDisposable
     {
         private readonly IEnumerator<Occurrence> postings;
 
@@ -64,7 +58,7 @@ public class TermQuery : ISearchQuery
 
         public override string ToString()
         {
-            return $"{{{postings.Current.ToString()}}}";
+            return $"{{{postings.Current}}}";
         }
 
         public IEnumerable<Occurrence> GetOccurrences()

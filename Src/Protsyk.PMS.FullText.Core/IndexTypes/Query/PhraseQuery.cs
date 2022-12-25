@@ -2,24 +2,19 @@
 
 namespace Protsyk.PMS.FullText.Core;
 
-public class PhraseQuery : ISearchQuery
+public sealed class PhraseQuery : ISearchQuery
 {
-    #region Fields
     private readonly ISearchQuery[] queries;
     private readonly IMatch[] matches;
     private bool consumed;
-    #endregion
 
-    #region Methods
     public PhraseQuery(params ISearchQuery [] queries)
     {
         this.queries = queries;
         this.matches = new IMatch[queries.Length];
         this.consumed = false;
     }
-    #endregion
 
-    #region ISearchQuery
     public IMatch NextMatch()
     {
         if (consumed)
@@ -28,7 +23,7 @@ public class PhraseQuery : ISearchQuery
         }
 
         var target = Occurrence.Empty;
-        var i = 0;
+        int i = 0;
 
         matches[i] = null;
         while (i < queries.Length)
@@ -39,13 +34,13 @@ public class PhraseQuery : ISearchQuery
             {
                 var m = queries[i].NextMatch();
                 matches[i] = m;
-                if (m == null)
+                if (m is null)
                 {
                     consumed = true;
                     return null;
                 }
 
-                newTarget = Occurrence.O(
+                newTarget = new Occurrence(
                     Math.Max(target.DocumentId, m.Right.DocumentId),
                     Math.Max(target.FieldId, m.Right.FieldId),
                     0);
@@ -74,10 +69,9 @@ public class PhraseQuery : ISearchQuery
         return new SequenceMatch(matches);
     }
 
-
     public bool AreCompatible(IMatch[] matches)
     {
-        var o = matches[0].Left;
+        Occurrence o = matches[0].Left;
         for (int i = 1; i < matches.Length; i++)
         {
             if (o.DocumentId != matches[i].Left.DocumentId ||
@@ -92,5 +86,4 @@ public class PhraseQuery : ISearchQuery
     public void Dispose()
     {
     }
-    #endregion
 }

@@ -5,9 +5,8 @@ using Protsyk.PMS.FullText.Core.Collections;
 
 namespace Protsyk.PMS.FullText.Core;
 
-public class OrMultiQuery : ISearchQuery
+public sealed class OrMultiQuery : ISearchQuery
 {
-    #region Fields
     private readonly ISearchQuery[] queries;
     private readonly Heap<ValueTuple<IMatch, ISearchQuery>> heap;
     private States state;
@@ -19,9 +18,7 @@ public class OrMultiQuery : ISearchQuery
         MatchAdvance,
         Consumed
     }
-    #endregion
 
-    #region Methods
     public OrMultiQuery(params ISearchQuery[] queries)
     {
         this.queries = queries;
@@ -30,9 +27,7 @@ public class OrMultiQuery : ISearchQuery
                 Comparer<ValueTuple<IMatch, ISearchQuery>>.Create(
                     (x, y) => MatchComparer.Instance.Compare(x.Item1, y.Item1)));
     }
-    #endregion
 
-    #region ISearchQuery
 
     public IMatch NextMatch()
     {
@@ -47,16 +42,15 @@ public class OrMultiQuery : ISearchQuery
                         state = States.MatchReturn;
                         foreach (var searchQuery in queries)
                         {
-                            var match = searchQuery.NextMatch();
-                            if (match != null)
+                            if (searchQuery.NextMatch() is { } match)
                             {
-                                heap.Add(new ValueTuple<IMatch, ISearchQuery>(match, searchQuery));
+                                heap.Add(new (match, searchQuery));
                             }
                         }
                     }
                     break;
                 case States.MatchReturn:
-                    if (heap.Count == 0)
+                    if (heap.Count is 0)
                     {
                         state = States.Consumed;
                         return null;
@@ -67,10 +61,9 @@ public class OrMultiQuery : ISearchQuery
                     {
                         var top = heap.RemoveTop();
                         var searchQuery = top.Item2;
-                        var match = searchQuery.NextMatch();
-                        if (match != null)
+                        if (searchQuery.NextMatch() is { } match)
                         {
-                            heap.Add(new ValueTuple<IMatch, ISearchQuery>(match, searchQuery));
+                            heap.Add(new (match, searchQuery));
                         }
                         state = States.MatchReturn;
                     }
@@ -81,7 +74,6 @@ public class OrMultiQuery : ISearchQuery
         }
     }
 
-
     public void Dispose()
     {
         foreach (var searchQuery in queries)
@@ -89,5 +81,4 @@ public class OrMultiQuery : ISearchQuery
             searchQuery.Dispose();
         }
     }
-    #endregion
 }

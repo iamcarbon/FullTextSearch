@@ -2,9 +2,8 @@
 
 namespace Protsyk.PMS.FullText.Core;
 
-public class OrQuery : ISearchQuery
+public sealed class OrQuery : ISearchQuery
 {
-    #region Fields
     private readonly ISearchQuery leftQuery;
     private readonly ISearchQuery rightQuery;
 
@@ -21,17 +20,13 @@ public class OrQuery : ISearchQuery
         Tail,
         Null
     };
-    #endregion
 
-    #region Methods
     public OrQuery(ISearchQuery leftQuery, ISearchQuery rightQuery)
     {
         this.leftQuery = leftQuery;
         this.rightQuery = rightQuery;
     }
-    #endregion
 
-    #region ISearchQuery
     public IMatch NextMatch()
     {
         while (true)
@@ -122,5 +117,4 @@ public class OrQuery : ISearchQuery
         leftQuery?.Dispose();
         rightQuery?.Dispose();
     }
-    #endregion
 }
